@@ -1,4 +1,4 @@
-# Indico Case Study
+# Case Study
 
 This project contains two independent test suites: API tests for Swagger Petstore and browser-based checkout tests for SauceDemo.
 
