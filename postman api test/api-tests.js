@@ -1,77 +1,137 @@
-import { fileURLToPath } from 'node:url';
+import { describe, it } from 'mocha';
+import { expect } from 'chai';
 import { PetstoreApi } from './pom/PetstoreApi.js';
-import { TestReporter } from './pom/TestReporter.js';
 
 const api = new PetstoreApi();
-const reporter = new TestReporter(fileURLToPath(new URL('./api-test-report.json', import.meta.url)));
+const deletePetId = Date.now();
 
-const petPayload = (name, status, tag = status) => ({
-  id: 0,
-  category: { id: 0, name: 'dog' },
-  name,
-  photoUrls: [`https://example.com/${name}.jpg`],
-  tags: [{ id: 0, name: `${tag}-tag` }],
-  status,
-});
+describe('Petstore API', function () {
+  it('Test Case 1: Create pet with status "available"', async function () {
+    const result = await api.createPet({
+      id: 0,
+      category: { id: 0, name: 'dog' },
+      name: 'doggie-available',
+      photoUrls: ['https://example.com/dog.jpg'],
+      tags: [{ id: 0, name: 'available-tag' }],
+      status: 'available',
+    });
 
-async function runTests() {
-  console.log('=== Petstore API Test Suite ===');
+    expect(result.status).to.equal(200);
+    expect(result.body.status).to.equal('available');
+  });
 
-  const createdPets = {};
-  const createCases = [
-    ['Test Case 1: Create pet with status "available"', petPayload('doggie-available', 'available'), 'available'],
-    ['Test Case 2: Create pet with status "pending"', petPayload('doggie-pending', 'pending'), 'pending'],
-    ['Test Case 3: Create pet with status "sold"', petPayload('doggie-sold', 'sold'), 'sold'],
-    ['Test Case 4: Create pet with only name and status', { name: 'doggie-name-status-only', status: 'available' }],
-    ['Test Case 5: Create pet with only name', { name: 'doggie-name-only' }],
-  ];
+  it('Test Case 2: Create pet with status "pending"', async function () {
+    const result = await api.createPet({
+      id: 0,
+      category: { id: 0, name: 'dog' },
+      name: 'doggie-pending',
+      photoUrls: ['https://example.com/dog.jpg'],
+      tags: [{ id: 0, name: 'pending-tag' }],
+      status: 'pending',
+    });
 
-  for (const [name, payload, status] of createCases) {
-    const pet = await reporter.run(name, () => api.createPet(payload));
-    if (status) createdPets[status] = pet?.id;
-  }
+    expect(result.status).to.equal(200);
+    expect(result.body.status).to.equal('pending');
+  });
 
-  await reporter.run('Test Case 6: Send empty JSON payload', () =>
-    api.createPetExpectingError({}));
-  await reporter.run('Test Case 7: Invalid JSON syntax', () =>
-    api.createPetExpectingError('{bad-json'));
+  it('Test Case 3: Create pet with status "sold"', async function () {
+    const result = await api.createPet({
+      id: 0,
+      category: { id: 0, name: 'dog' },
+      name: 'doggie-sold',
+      photoUrls: ['https://example.com/dog.jpg'],
+      tags: [{ id: 0, name: 'sold-tag' }],
+      status: 'sold',
+    });
 
-  for (const status of ['available', 'pending', 'sold']) {
-    await reporter.run(`Filter by status "${status}"`, () =>
-      api.findPetByStatus(status, createdPets[status], status));
-  }
-  await reporter.run('Filter by invalid or unregistered status', () =>
-    api.findPetByInvalidStatus('not-a-real-status'));
+    expect(result.status).to.equal(200);
+    expect(result.body.status).to.equal('sold');
+  });
 
-  const deletePet = await reporter.run('Prepare DELETE test: create pet to delete', () =>
-    api.createPet(petPayload('doggie-delete-test', 'available', 'delete-test')));
+  it('Test Case 4: Create pet with only name and status', async function () {
+    const result = await api.createPet({
+      name: 'doggie-name-status',
+      status: 'available',
+    });
 
-  if (deletePet?.id) {
-    await reporter.run('Delete existing pet ID', () => api.deletePet(deletePet.id));
-    await reporter.run('Delete already deleted pet ID', () => api.deletePetExpectingError(deletePet.id));
-  } else {
-    const reason = 'Skipped because the DELETE test pet could not be created';
-    reporter.skip('Delete existing pet ID', reason);
-    reporter.skip('Delete already deleted pet ID', reason);
-    console.error(`\nDELETE-by-ID cases skipped: ${reason}.`);
-  }
+    expect(result.status).to.equal(200);
+    expect(result.body).to.include({ name: 'doggie-name-status', status: 'available' });
+  });
 
-  await reporter.run('Delete with non-numeric pet ID', () =>
-    api.deletePetExpectingError('abc'));
+  it('Test Case 5: Create pet with only name', async function () {
+    const result = await api.createPet({ name: 'doggie-name-only' });
 
-  const summary = await reporter.write();
-  console.log(`\n=== Finished: ${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped ===`);
-  if (summary.failed) process.exitCode = 1;
-}
+    expect(result.status).to.equal(200);
+    expect(result.body.name).to.equal('doggie-name-only');
+  });
 
-runTests().catch(async (error) => {
-  console.error('\nAPI test suite failed');
-  console.error(String(error.stack || error));
-  reporter.fail('API test suite runner', error);
-  try {
-    await reporter.write();
-  } catch (reportError) {
-    console.error(`Could not write API test report: ${String(reportError.stack || reportError)}`);
-  }
-  process.exitCode = 1;
+  it('Test Case 6: Send empty JSON payload', async function () {
+    const result = await api.createPet({});
+
+    expect(result.status).to.be.at.least(400);
+  });
+
+  it('Test Case 7: Invalid JSON syntax', async function () {
+    const result = await api.createPet('{bad-json');
+
+    expect(result.status).to.be.at.least(400);
+  });
+
+  it('Filter by status "available"', async function () {
+    const result = await api.findPetsByStatus('available');
+
+    expect(result.status).to.equal(200);
+    expect(result.body).to.be.an('array');
+    expect(result.body.every((pet) => pet.status === 'available')).to.equal(true);
+  });
+
+  it('Filter by status "pending"', async function () {
+    const result = await api.findPetsByStatus('pending');
+
+    expect(result.status).to.equal(200);
+    expect(result.body).to.be.an('array');
+    expect(result.body.every((pet) => pet.status === 'pending')).to.equal(true);
+  });
+
+  it('Filter by status "sold"', async function () {
+    const result = await api.findPetsByStatus('sold');
+
+    expect(result.status).to.equal(200);
+    expect(result.body).to.be.an('array');
+    expect(result.body.every((pet) => pet.status === 'sold')).to.equal(true);
+  });
+
+  it('Filter by invalid or unregistered status', async function () {
+    const result = await api.findPetsByStatus('not-a-real-status');
+
+    expect(result.status).to.be.at.least(400);
+  });
+
+  it('Prepare DELETE test: create pet to delete', async function () {
+    const result = await api.createPet({
+      id: deletePetId,
+      name: 'doggie-delete-test',
+      photoUrls: [],
+    });
+
+    expect(result.status).to.equal(200);
+  });
+
+  it('Delete existing pet ID', async function () {
+    const result = await api.deletePet(deletePetId);
+
+    expect(result.status).to.equal(200);
+  });
+
+  it('Delete already deleted pet ID', async function () {
+    const result = await api.deletePet(deletePetId);
+
+    expect(result.status).to.be.at.least(400);
+  });
+
+  it('Delete with non-numeric pet ID', async function () {
+    const result = await api.deletePet('abc');
+
+    expect(result.status).to.be.at.least(400);
+  });
 });
